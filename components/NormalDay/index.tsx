@@ -2,6 +2,7 @@
 
 import { Billboard, Line, OrbitControls, Stars } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
+import { useRouter } from "next/navigation";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
@@ -952,8 +953,13 @@ function CelestialModal({
   celestial: CelestialInfo | null;
   onClose: () => void;
 }) {
+  const router = useRouter();
   if (!celestial) {
     return null;
+  }
+
+  function handleClickChange() {
+    router.push("/mazerose")
   }
 
   return (
@@ -1001,6 +1007,7 @@ function CelestialModal({
             onClick={onClose}
             style={{ "--challenge-accent": celestial.accent } as CSSProperties}
             type="button"
+            onClickCapture={handleClickChange}
           >
             <span className="relative z-10">Thử thách</span>
           </button>
