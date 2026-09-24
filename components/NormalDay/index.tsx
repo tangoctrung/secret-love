@@ -592,64 +592,6 @@ function DistantGalaxy({
   );
 }
 
-function ShootingStar({
-  start,
-  direction,
-  color,
-  delay,
-  cycle,
-}: {
-  start: [number, number, number];
-  direction: [number, number, number];
-  color: string;
-  delay: number;
-  cycle: number;
-}) {
-  const groupRef = useRef<THREE.Group>(null);
-  const directionVector = useMemo(
-    () => new THREE.Vector3(...direction).normalize(),
-    [direction],
-  );
-  const startVector = useMemo(() => new THREE.Vector3(...start), [start]);
-  const tailPoints = useMemo(
-    () => [new THREE.Vector3(), directionVector.clone().multiplyScalar(-2.8)],
-    [directionVector],
-  );
-
-  useFrame((state) => {
-    if (!groupRef.current) {
-      return;
-    }
-
-    const localTime = (state.clock.elapsedTime + delay) % cycle;
-    const duration = 1.45;
-    groupRef.current.visible = localTime < duration;
-
-    if (localTime < duration) {
-      const progress = localTime / duration;
-      groupRef.current.position.copy(startVector).addScaledVector(directionVector, progress * 18);
-    }
-  });
-
-  return (
-    <group ref={groupRef} visible={false}>
-      <Line
-        blending={THREE.AdditiveBlending}
-        color={color}
-        depthWrite={false}
-        lineWidth={2}
-        opacity={0.72}
-        points={tailPoints}
-        transparent
-      />
-      <mesh>
-        <sphereGeometry args={[0.065, 12, 12]} />
-        <meshBasicMaterial color="#ffffff" toneMapped={false} />
-      </mesh>
-    </group>
-  );
-}
-
 function SaturnRing({ radius, accent }: { radius: number; accent: string }) {
   return (
     <group rotation={[Math.PI / 2.5, 0, 0]}>
@@ -840,57 +782,13 @@ function PlanetSystem({ onSelect }: { onSelect: (planet: Planet) => void }) {
       <DistantGalaxy
         armColor="#557dff"
         coreColor="#fff0d2"
-        position={[-10, 5, -28]}
+        position={[0, -5, -88]}
         rotation={-0.2}
-        scale={[44, 11, 1]}
+        scale={[120, 50, 5]}
         seed={1.2}
-      />
-      <DistantGalaxy
-        armColor="#b45dff"
-        coreColor="#dffaff"
-        position={[16, -12, -36]}
-        rotation={0.38}
-        scale={[34, 8, 1]}
-        seed={3.8}
       />
 
       <Sun />
-
-      <ShootingStar
-        color="#dff8ff"
-        cycle={7.4}
-        delay={0.3}
-        direction={[1, -0.34, -0.16]}
-        start={[-15, 10, 3]}
-      />
-      <ShootingStar
-        color="#9fdcff"
-        cycle={9.1}
-        delay={2.8}
-        direction={[-1, -0.42, 0.08]}
-        start={[15, 11, -5]}
-      />
-      <ShootingStar
-        color="#ffe2b2"
-        cycle={8.3}
-        delay={5.1}
-        direction={[0.88, -0.52, 0.12]}
-        start={[-13, 5, -9]}
-      />
-      <ShootingStar
-        color="#b4caff"
-        cycle={10.2}
-        delay={7.2}
-        direction={[-0.92, -0.28, -0.2]}
-        start={[16, 7, 1]}
-      />
-      <ShootingStar
-        color="#ffffff"
-        cycle={11.4}
-        delay={9.4}
-        direction={[0.72, -0.66, -0.16]}
-        start={[-8, 14, -3]}
-      />
 
       {planets.map((planet) => (
         <OrbitRing
