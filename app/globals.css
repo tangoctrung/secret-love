@@ -24,3 +24,81 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.challenge-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #02030a;
+  border-color: color-mix(in srgb, var(--challenge-accent) 80%, white);
+  background: color-mix(in srgb, var(--challenge-accent) 86%, white);
+  box-shadow:
+    0 0 0 0 color-mix(in srgb, var(--challenge-accent) 38%, transparent),
+    0 10px 28px color-mix(in srgb, var(--challenge-accent) 28%, transparent);
+  animation: challenge-pulse 2.4s ease-in-out infinite;
+  transition:
+    transform 180ms ease,
+    filter 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.challenge-button::before {
+  position: absolute;
+  inset: -40% auto -40% -45%;
+  width: 30%;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 75%), transparent);
+  transform: skewX(-18deg) translateX(-180%);
+  animation: challenge-sheen 3.2s ease-in-out infinite;
+}
+
+.challenge-button:hover {
+  transform: translateY(-2px) scale(1.04);
+  filter: brightness(1.08);
+  box-shadow:
+    0 0 0 5px color-mix(in srgb, var(--challenge-accent) 16%, transparent),
+    0 14px 34px color-mix(in srgb, var(--challenge-accent) 42%, transparent);
+}
+
+.challenge-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.challenge-button:focus-visible {
+  outline: 3px solid white;
+  outline-offset: 4px;
+}
+
+@keyframes challenge-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--challenge-accent) 36%, transparent),
+      0 10px 28px color-mix(in srgb, var(--challenge-accent) 26%, transparent);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0 7px color-mix(in srgb, var(--challenge-accent) 0%, transparent),
+      0 14px 34px color-mix(in srgb, var(--challenge-accent) 46%, transparent);
+  }
+}
+
+@keyframes challenge-sheen {
+  0%,
+  58% {
+    transform: skewX(-18deg) translateX(-180%);
+  }
+
+  82%,
+  100% {
+    transform: skewX(-18deg) translateX(650%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .challenge-button,
+  .challenge-button::before {
+    animation: none;
+  }
+}

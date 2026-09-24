@@ -2,24 +2,41 @@
 
 import { Billboard, Line, OrbitControls, Stars } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
-type Planet = {
+type CelestialInfo = {
   name: string;
   subtitle: string;
   description: string;
+  accent: string;
+  facts: string[];
+};
+
+type Planet = CelestialInfo & {
   radius: number;
   distance: number;
   orbitSpeed: number;
   selfSpeed: number;
   color: string;
-  accent: string;
   detailColor: string;
   atmosphere: string;
   surface: number;
   inclination: number;
-  facts: string[];
+};
+
+const PLANET_MOTION_SPEED = 0.5;
+
+const sunInfo: CelestialInfo = {
+  name: "Mặt Trời",
+  subtitle: "Ngôi sao trung tâm",
+  description:
+    "Nguồn năng lượng của cả hệ, một quả cầu plasma khổng lồ đang liên tục phát sáng và tỏa nhiệt.",
+  accent: "#ffb347",
+  facts: [
+    "Chiếm khoảng 99,86% khối lượng Hệ Mặt Trời",
+    "Ánh sáng mất khoảng 8 phút 20 giây để tới Trái Đất",
+  ],
 };
 
 const planets: Planet[] = [
@@ -27,7 +44,7 @@ const planets: Planet[] = [
     name: "Sao Thủy",
     subtitle: "Hành tinh nhanh nhất",
     description: "Nhỏ, gần Mặt Trời nhất và hoàn thành một vòng quỹ đạo cực nhanh.",
-    radius: 0.34,
+    radius: 0.2,
     distance: 2.2,
     orbitSpeed: 0.62,
     selfSpeed: 1.8,
@@ -75,7 +92,7 @@ const planets: Planet[] = [
     name: "Sao Hỏa",
     subtitle: "Hành tinh đỏ",
     description: "Sa mạc lạnh với bụi oxit sắt, núi lửa lớn và dấu vết nước cổ xưa.",
-    radius: 0.44,
+    radius: 0.28,
     distance: 5,
     orbitSpeed: 0.34,
     selfSpeed: 1.45,
@@ -123,7 +140,7 @@ const planets: Planet[] = [
     name: "Sao Thiên Vương",
     subtitle: "Gã nghiêng mình",
     description: "Hành tinh băng khổng lồ quay gần như nằm ngang so với quỹ đạo.",
-    radius: 0.67,
+    radius: 0.43,
     distance: 9.8,
     orbitSpeed: 0.13,
     selfSpeed: 1.55,
@@ -139,7 +156,7 @@ const planets: Planet[] = [
     name: "Sao Hải Vương",
     subtitle: "Cơn gió xanh thẳm",
     description: "Thế giới băng xa xôi, lạnh giá, nổi tiếng với những luồng gió dữ dội.",
-    radius: 0.64,
+    radius: 0.4,
     distance: 11.1,
     orbitSpeed: 0.1,
     selfSpeed: 1.7,
@@ -167,6 +184,25 @@ const planets: Planet[] = [
     inclination: 0.28,
     facts: ["Được xếp là hành tinh lùn", "Có vệ tinh lớn Charon"],
   },
+];
+
+type AsteroidSpec = {
+  name: string;
+  start: [number, number, number];
+  end: [number, number, number];
+  size: number;
+  duration: number;
+  offset: number;
+  seed: number;
+  color: string;
+};
+
+const asteroids: AsteroidSpec[] = [
+  { name: "Astra-1", start: [-18, 6, 5], end: [18, -2, -8], size: 0.24, duration: 34, offset: 0, seed: 1.3, color: "#70665d" },
+  { name: "Astra-2", start: [16, 9, -10], end: [-17, 1, 4], size: 0.16, duration: 41, offset: 12, seed: 2.8, color: "#918376" },
+  { name: "Astra-3", start: [-13, -5, -3], end: [15, 4, -12], size: 0.3, duration: 38, offset: 23, seed: 4.1, color: "#5f5955" },
+  { name: "Astra-4", start: [11, -8, 2], end: [-15, 6, -16], size: 0.2, duration: 46, offset: 31, seed: 5.7, color: "#817267" },
+  { name: "Astra-5", start: [-17, 11, -18], end: [17, -4, 0], size: 0.13, duration: 36, offset: 8, seed: 7.2, color: "#9a8b7d" },
 ];
 
 const planetVertexShader = /* glsl */ `
@@ -375,12 +411,19 @@ const galaxyFragmentShader = /* glsl */ `
   uniform vec3 uCoreColor;
   uniform vec3 uArmColor;
   uniform float uSeed;
+  uniform float uStyle;
   varying vec2 vUv;
 
   ${noiseFunctions}
 
   void main() {
     vec2 point = (vUv - 0.5) * 2.0;
+    vec2 starGrid = vec2(120.0, 56.0);
+    vec2 starCell = floor((point + 1.0) * starGrid);
+    vec2 starLocal = fract((point + 1.0) * starGrid) - 0.5;
+    float starSeed = hash21(starCell + vec2(uSeed * 17.0));
+    float baseStarDots = (1.0 - smoothstep(0.025, 0.14, length(starLocal))) * step(0.94, starSeed);
+
     float warp = sin(point.x * 3.4 + uSeed) * 0.1 + sin(point.x * 8.0 - uSeed) * 0.025;
     float bandDistance = abs(point.y - warp);
     float lengthFade = 1.0 - smoothstep(0.36, 1.0, abs(point.x));
@@ -390,8 +433,26 @@ const galaxyFragmentShader = /* glsl */ `
     float filaments = exp(-bandDistance * (11.0 + dust * 8.0));
     float brightCore = exp(-(point.x * point.x * 7.0 + bandDistance * bandDistance * 90.0));
     float starClusters = smoothstep(0.79, 0.94, fineDust) * exp(-bandDistance * 9.0);
-    vec3 color = mix(uArmColor, uCoreColor, brightCore + filaments * 0.34 + starClusters);
-    float alpha = (wideGlow * (0.08 + dust * 0.14) + filaments * 0.25 + brightCore * 0.55 + starClusters * 0.5) * lengthFade;
+    float bandStars = baseStarDots * exp(-bandDistance * 5.5) * lengthFade;
+    vec3 bandColor = mix(uArmColor, uCoreColor, brightCore + filaments * 0.34 + starClusters);
+    bandColor = mix(bandColor, vec3(1.0), bandStars);
+    float bandAlpha = (wideGlow * (0.08 + dust * 0.14) + filaments * 0.25 + brightCore * 0.55 + starClusters * 0.5) * lengthFade + bandStars * 0.9;
+
+    float radius = length(point);
+    float angle = atan(point.y, point.x);
+    float spiralFade = 1.0 - smoothstep(0.22, 1.0, radius);
+    float spiralDust = fbm(point * 8.0 + vec2(uSeed * 2.3));
+    float armPattern = sin(angle * 3.0 - radius * 17.0 + uSeed + spiralDust * 2.2) * 0.5 + 0.5;
+    float spiralArms = pow(armPattern, 5.0) * spiralFade * (0.35 + spiralDust * 0.8);
+    float spiralHaze = exp(-radius * 3.4) * 0.24;
+    float spiralCore = exp(-radius * 13.0);
+    float spiralStars = baseStarDots * spiralFade * (0.35 + spiralArms);
+    vec3 spiralColor = mix(uArmColor, uCoreColor, spiralCore + spiralHaze * 0.5);
+    spiralColor = mix(spiralColor, vec3(1.0), spiralStars);
+    float spiralAlpha = spiralArms * 0.62 + spiralHaze + spiralCore * 0.78 + spiralStars * 0.82;
+
+    vec3 color = uStyle < 0.5 ? bandColor : spiralColor;
+    float alpha = uStyle < 0.5 ? bandAlpha : spiralAlpha;
 
     gl_FragColor = vec4(color, alpha);
     #include <tonemapping_fragment>
@@ -463,17 +524,14 @@ function OrbitRing({
   );
 }
 
-function Sun() {
+function Sun({ onSelect }: { onSelect: (celestial: CelestialInfo) => void }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const coronaRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const raysMaterialRef = useRef<THREE.ShaderMaterial>(null);
   const surfaceUniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
   const raysUniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
-  const coronaUniforms = useMemo(
-    () => ({ uGlowColor: { value: new THREE.Color("#ff7a18") } }),
-    [],
-  );
+
 
   useFrame((state, delta) => {
     if (meshRef.current) {
@@ -498,7 +556,7 @@ function Sun() {
   return (
     <group>
       <pointLight color="#ffd28a" intensity={90} distance={35} decay={1.75} />
-      <Billboard scale={[8.5, 8.5, 1]}>
+      <Billboard scale={[18.5, 18.5, 10]}>
         <mesh>
           <planeGeometry args={[1, 1]} />
           <shaderMaterial
@@ -513,8 +571,22 @@ function Sun() {
           />
         </mesh>
       </Billboard>
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[1.05, 64, 64]} />
+      <mesh
+        ref={meshRef}
+        onClick={(event) => {
+          event.stopPropagation();
+          document.body.style.cursor = "auto";
+          onSelect(sunInfo);
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation();
+          document.body.style.cursor = "pointer";
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = "auto";
+        }}
+      >
+        <sphereGeometry args={[1.2, 64, 64]} />
         <shaderMaterial
           ref={materialRef}
           fragmentShader={sunFragmentShader}
@@ -523,20 +595,9 @@ function Sun() {
           vertexShader={planetVertexShader}
         />
       </mesh>
-      <mesh ref={coronaRef}>
-        <sphereGeometry args={[1.05, 64, 64]} />
-        <shaderMaterial
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
-          fragmentShader={atmosphereFragmentShader}
-          side={THREE.BackSide}
-          transparent
-          uniforms={coronaUniforms}
-          vertexShader={atmosphereVertexShader}
-        />
-      </mesh>
+
       <mesh scale={1.48}>
-        <sphereGeometry args={[1.05, 48, 48]} />
+        <sphereGeometry args={[10.05, 48, 48]} />
         <meshBasicMaterial
           blending={THREE.AdditiveBlending}
           color="#ff8a24"
@@ -557,6 +618,7 @@ function DistantGalaxy({
   coreColor,
   armColor,
   seed,
+  style = "band",
 }: {
   position: [number, number, number];
   rotation: number;
@@ -564,14 +626,16 @@ function DistantGalaxy({
   coreColor: string;
   armColor: string;
   seed: number;
+  style?: "band" | "spiral";
 }) {
   const uniforms = useMemo(
     () => ({
       uCoreColor: { value: new THREE.Color(coreColor) },
       uArmColor: { value: new THREE.Color(armColor) },
       uSeed: { value: seed },
+      uStyle: { value: style === "spiral" ? 1 : 0 },
     }),
-    [armColor, coreColor, seed],
+    [armColor, coreColor, seed, style],
   );
 
   return (
@@ -589,6 +653,56 @@ function DistantGalaxy({
         />
       </mesh>
     </Billboard>
+  );
+}
+
+function RoughAsteroid({ asteroid }: { asteroid: AsteroidSpec }) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const start = useMemo(() => new THREE.Vector3(...asteroid.start), [asteroid.start]);
+  const end = useMemo(() => new THREE.Vector3(...asteroid.end), [asteroid.end]);
+  const geometry = useMemo(() => {
+    const asteroidGeometry = new THREE.IcosahedronGeometry(asteroid.size, 2);
+    const positions = asteroidGeometry.attributes.position as THREE.BufferAttribute;
+    const vertex = new THREE.Vector3();
+
+    for (let index = 0; index < positions.count; index += 1) {
+      vertex.fromBufferAttribute(positions, index);
+      const normal = vertex.clone().normalize();
+      const roughness =
+        1 +
+        Math.sin(normal.x * 12.7 + asteroid.seed) * 0.11 +
+        Math.sin(normal.y * 17.3 + normal.z * 9.1 + asteroid.seed * 2) * 0.07;
+      positions.setXYZ(index, vertex.x * roughness, vertex.y * roughness, vertex.z * roughness);
+    }
+
+    positions.needsUpdate = true;
+    asteroidGeometry.computeVertexNormals();
+    return asteroidGeometry;
+  }, [asteroid.seed, asteroid.size]);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  useFrame((state, delta) => {
+    if (!meshRef.current) {
+      return;
+    }
+
+    const progress = ((state.clock.elapsedTime + asteroid.offset) % asteroid.duration) / asteroid.duration;
+    meshRef.current.position.lerpVectors(start, end, progress);
+    meshRef.current.rotation.x += delta * (0.16 + asteroid.seed * 0.012);
+    meshRef.current.rotation.y += delta * (0.21 + asteroid.seed * 0.01);
+    meshRef.current.rotation.z += delta * 0.08;
+  });
+
+  return (
+    <mesh ref={meshRef} geometry={geometry}>
+      <meshStandardMaterial
+        color={asteroid.color}
+        flatShading
+        metalness={0.08}
+        roughness={0.96}
+      />
+    </mesh>
   );
 }
 
@@ -682,12 +796,13 @@ function PlanetBody({
 }: {
   planet: Planet;
   index: number;
-  onSelect: (planet: Planet) => void;
+  onSelect: (celestial: CelestialInfo) => void;
 }) {
   const orbitRef = useRef<THREE.Group>(null);
   const spinRef = useRef<THREE.Group>(null);
   const surfaceMaterialRef = useRef<THREE.ShaderMaterial>(null);
-  const startingAngle = useMemo(() => index * 0.74, [index]);
+  const startingAngleRef = useRef(0);
+  const hasRandomAngleRef = useRef(false);
   const surfaceUniforms = useMemo(
     () => ({
       uTime: { value: 0 },
@@ -704,12 +819,20 @@ function PlanetBody({
   );
 
   useFrame((state, delta) => {
+    if (!hasRandomAngleRef.current) {
+      const randomValue = new Uint32Array(1);
+      crypto.getRandomValues(randomValue);
+      startingAngleRef.current = (randomValue[0] / 0xffffffff) * Math.PI * 2;
+      hasRandomAngleRef.current = true;
+    }
+
     if (orbitRef.current) {
-      orbitRef.current.rotation.y = startingAngle + state.clock.elapsedTime * planet.orbitSpeed;
+      orbitRef.current.rotation.y =
+        startingAngleRef.current + state.clock.elapsedTime * planet.orbitSpeed * PLANET_MOTION_SPEED;
     }
 
     if (spinRef.current) {
-      spinRef.current.rotation.y += delta * planet.selfSpeed;
+      spinRef.current.rotation.y += delta * planet.selfSpeed * PLANET_MOTION_SPEED;
       spinRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.35 + index) * 0.055;
     }
 
@@ -725,6 +848,7 @@ function PlanetBody({
           position={[planet.distance, 0, 0]}
           onClick={(event) => {
             event.stopPropagation();
+            document.body.style.cursor = "auto";
             onSelect(planet);
           }}
           onPointerOver={(event) => {
@@ -771,7 +895,7 @@ function PlanetBody({
   );
 }
 
-function PlanetSystem({ onSelect }: { onSelect: (planet: Planet) => void }) {
+function PlanetSystem({ onSelect }: { onSelect: (celestial: CelestialInfo) => void }) {
   return (
     <>
       <color attach="background" args={["#02030a"]} />
@@ -782,13 +906,18 @@ function PlanetSystem({ onSelect }: { onSelect: (planet: Planet) => void }) {
       <DistantGalaxy
         armColor="#557dff"
         coreColor="#fff0d2"
-        position={[0, -5, -88]}
-        rotation={-0.2}
-        scale={[120, 50, 5]}
+        position={[0, -7, -78]}
+        rotation={-0.18}
+        scale={[96, 30, 1]}
         seed={1.2}
       />
 
-      <Sun />
+
+      <Sun onSelect={onSelect} />
+
+      {asteroids.map((asteroid) => (
+        <RoughAsteroid key={asteroid.name} asteroid={asteroid} />
+      ))}
 
       {planets.map((planet) => (
         <OrbitRing
@@ -816,14 +945,14 @@ function PlanetSystem({ onSelect }: { onSelect: (planet: Planet) => void }) {
   );
 }
 
-function PlanetModal({
-  planet,
+function CelestialModal({
+  celestial,
   onClose,
 }: {
-  planet: Planet | null;
+  celestial: CelestialInfo | null;
   onClose: () => void;
 }) {
-  if (!planet) {
+  if (!celestial) {
     return null;
   }
 
@@ -841,8 +970,8 @@ function PlanetModal({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-white/45">{planet.subtitle}</p>
-            <h2 className="mt-2 text-3xl font-semibold">{planet.name}</h2>
+            <p className="text-sm font-medium uppercase tracking-[0.24em] text-white/45">{celestial.subtitle}</p>
+            <h2 className="mt-2 text-3xl font-semibold">{celestial.name}</h2>
           </div>
           <button
             aria-label="Đóng modal"
@@ -854,15 +983,27 @@ function PlanetModal({
           </button>
         </div>
 
-        <div className="mt-5 h-1.5 rounded-full" style={{ backgroundColor: planet.accent }} />
-        <p className="mt-5 text-base leading-7 text-white/78">{planet.description}</p>
+        <div className="mt-5 h-1.5 rounded-full" style={{ backgroundColor: celestial.accent }} />
+        <p className="mt-5 text-base leading-7 text-white/78">{celestial.description}</p>
 
         <div className="mt-6 grid gap-3">
-          {planet.facts.map((fact) => (
+          {celestial.facts.map((fact) => (
             <div key={fact} className="rounded-md border border-white/10 bg-white/4 px-4 py-3 text-sm text-white/76">
               {fact}
             </div>
           ))}
+        </div>
+
+        <div className="mt-6 flex justify-center">
+          <button
+            aria-label={`Thử thách với ${celestial.name}`}
+            className="challenge-button grid min-h-12 min-w-36 shrink-0 cursor-pointer place-items-center rounded-md border px-6 py-3 font-semibold leading-none"
+            onClick={onClose}
+            style={{ "--challenge-accent": celestial.accent } as CSSProperties}
+            type="button"
+          >
+            <span className="relative z-10">Thử thách</span>
+          </button>
         </div>
       </section>
     </div>
@@ -870,7 +1011,7 @@ function PlanetModal({
 }
 
 function NormalDay() {
-  const [selectedPlanet, setSelectedPlanet] = useState<Planet | null>(null);
+  const [selectedCelestial, setSelectedCelestial] = useState<CelestialInfo | null>(null);
 
   return (
     <main className="relative h-screen min-h-140 overflow-hidden bg-[#02030a] text-white">
@@ -881,20 +1022,20 @@ function NormalDay() {
           gl={{ antialias: true, alpha: false }}
           style={{ height: "100vh", width: "100vw" }}
         >
-          <PlanetSystem onSelect={setSelectedPlanet} />
+          <PlanetSystem onSelect={setSelectedCelestial} />
         </Canvas>
       </div>
 
       <div className="pointer-events-none absolute left-0 top-0 z-10 w-full px-5 py-5 sm:px-8">
         <div className="max-w-xl">
-          <h1 className="mt-3 text-3xl font-semibold sm:text-5xl">Hệ mặt trời</h1>
+          <h1 className="mt-3 text-xl font-semibold sm:text-3xl">Hệ mặt trời</h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-white/68 sm:text-base">
-            Chọn một hành tinh hoặc kéo để xoay góc nhìn.
+            Chọn một hành tinh bất kì để thực hiện thử thách.
           </p>
         </div>
       </div>
 
-      <PlanetModal planet={selectedPlanet} onClose={() => setSelectedPlanet(null)} />
+      <CelestialModal celestial={selectedCelestial} onClose={() => setSelectedCelestial(null)} />
     </main>
   );
 }
