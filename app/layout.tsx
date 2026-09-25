@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
+import { Metadata } from "next";
 
 const poppins = Poppins({
   display: "swap",
@@ -9,30 +9,22 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://secret-love-pearl.vercel.app/mazerose"),
   title: {
-    template: 'Memory',
-    default: 'Memory'
+    default: "Memory",
+    template: "%s | Memory",
   },
   description: "Lưu giữ kỉ niệm",
-  icons: {
-    icon: 'https://cdn-media.sforum.vn/storage/app/media/anhthem/meme-tinh-yeu-64.jpg',
-  },
   openGraph: {
-    locale: 'en_US',
-    type: 'website',
-    siteName: 'Memory',
-    description: "Lưu giữ kỉ niệm",
-    images: 'https://cdn-media.sforum.vn/storage/app/media/anhthem/meme-tinh-yeu-64.jpg'
+    siteName: "Memory",
+    type: "website",
+    locale: "vi_VN",
   },
   twitter: {
-    site: '@trungtn',
-    title: 'Memory',
-    description: 'Lưu giữ kỉ niệm',
-    images: ['https://cdn-media.sforum.vn/storage/app/media/anhthem/meme-tinh-yeu-64.jpg']
+    card: "summary_large_image",
+    site: "@trungtn",
   },
-  metadataBase: new URL('https://acme.com'),
 };
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
