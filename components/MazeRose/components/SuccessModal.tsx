@@ -2,7 +2,7 @@
 
 export function SuccessModal({ onEnterGarden }: { onEnterGarden: () => void }) {
   return (
-    <div className="absolute inset-0 z-20 grid place-items-center bg-[#080503]/70 px-5 backdrop-blur-sm">
+    <div className="absolute inset-0 z-20 grid cursor-auto place-items-center bg-[#080503]/70 px-5 backdrop-blur-sm">
       <section className="w-full max-w-sm rounded-lg border border-amber-100/25 bg-[#1a100b]/95 p-7 text-center shadow-2xl">
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-amber-100/65">
           Đã rời khỏi mê cung

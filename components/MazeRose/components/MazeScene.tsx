@@ -1,6 +1,5 @@
 "use client";
 
-import { Stars } from "@react-three/drei";
 import { useEffect, useMemo } from "react";
 import { CELL_SIZE, COLUMNS, ENTRANCE, ROWS } from "../data";
 import { createRockTexture, toWorld } from "../maze";
@@ -32,14 +31,19 @@ export function MazeScene({
   const depth = ROWS * CELL_SIZE;
   const entrance = toWorld(ENTRANCE);
   const goalWorld = toWorld(goal);
+  const sunsetLightPosition: [number, number, number] = [42, 34, -24];
 
   return (
     <>
-      <color attach="background" args={["#0b0708"]} />
-      <fog attach="fog" args={["#130d13", 14, 62]} />
-      <ambientLight color="#ffe1c4" intensity={0.9} />
-      <hemisphereLight args={["#e8b98e", "#17101a", 1.75]} />
-      <directionalLight color="#ffd4aa" intensity={1.65} position={[7, 14, 5]} />
+      <color attach="background" args={["#9a704d"]} />
+      <fog attach="fog" args={["#76533f", 24, 78]} />
+      <ambientLight color="#f2c99b" intensity={0.86} />
+      <hemisphereLight args={["#d8a66c", "#30242a", 1.45]} />
+      <directionalLight
+        color="#e9a566"
+        intensity={2.3}
+        position={sunsetLightPosition}
+      />
       <pointLight
         color="#ffb168"
         distance={18}
@@ -52,7 +56,6 @@ export function MazeScene({
         intensity={42}
         position={[goalWorld.x, 2, goalWorld.z]}
       />
-      <Stars count={2200} depth={50} factor={3} fade radius={100} speed={0.35} />
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width, depth, 120, 90]} />
         <meshStandardMaterial
@@ -66,7 +69,7 @@ export function MazeScene({
           roughness={1}
         />
       </mesh>
-      <MazeWalls maze={maze} texture={rockTexture} />
+      <MazeWalls maze={maze} />
       <mesh position={[entrance.x, 0.07, entrance.z]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.42, 32]} />
         <meshBasicMaterial color="#ffb86f" />

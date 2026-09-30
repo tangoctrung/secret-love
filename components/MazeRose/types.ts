@@ -14,7 +14,7 @@ export type Temple = {
   position: Position;
 };
 
-export type RockTransform = {
+export type WallTransform = {
   color: string;
   position: THREE.Vector3;
   rotation: THREE.Euler;

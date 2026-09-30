@@ -5,7 +5,7 @@ import { GardenWorld } from "./GardenWorld";
 
 export function GardenScreen({ onRestart }: { onRestart: () => void }) {
   return (
-    <main className="relative h-screen overflow-hidden bg-[#87cdf2] text-white">
+    <main className="relative h-screen overflow-hidden bg-[#c69a68] text-white">
       <Canvas
         camera={{ fov: 58, position: [0, 1.65, 18] }}
         dpr={[1, 1.5]}

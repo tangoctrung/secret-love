@@ -9,6 +9,7 @@ import { GardenPlayer } from "./GardenPlayer";
 import { GardenTree } from "./GardenTree";
 
 export function GardenWorld() {
+  const sunsetLightPosition: [number, number, number] = [-26, 25, -38];
   const riverShape = useMemo(() => {
     const shape = new THREE.Shape();
     const center = (x: number) => Math.sin(x * 0.13) * 3.2;
@@ -34,11 +35,16 @@ export function GardenWorld() {
 
   return (
     <>
-      <color attach="background" args={["#87cdf2"]} />
-      <fog attach="fog" args={["#bde4f4", 38, 82]} />
-      <ambientLight color="#fff4d6" intensity={1.1} />
-      <hemisphereLight args={["#dff4ff", "#51733f", 2.2]} />
-      <directionalLight castShadow color="#fff0bd" intensity={2.8} position={[-12, 22, 8]} />
+      <color attach="background" args={["#c69a68"]} />
+      <fog attach="fog" args={["#b38560", 42, 90]} />
+      <ambientLight color="#ffe0ba" intensity={1.05} />
+      <hemisphereLight args={["#e8b878", "#4c6942", 1.9]} />
+      <directionalLight
+        castShadow
+        color="#e8a461"
+        intensity={2.8}
+        position={sunsetLightPosition}
+      />
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[80, 55]} />
         <meshStandardMaterial color="#70ad58" roughness={1} />

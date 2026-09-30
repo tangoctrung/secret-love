@@ -24,10 +24,10 @@ export function FullMap({ goal, maze, onClose, temples }: FullMapProps) {
     canvas.height = ROWS * cell;
     maze.forEach((row, rowIndex) =>
       row.forEach((value, columnIndex) => {
-        context.fillStyle = value === 1 ? "#382419" : "#a6afb4";
+        context.fillStyle = value === 1 ? "#245c36" : "#a6afb4";
         context.fillRect(columnIndex * cell, rowIndex * cell, cell, cell);
         if (value === 1) {
-          context.fillStyle = "rgba(12, 8, 6, 0.36)";
+          context.fillStyle = "rgba(7, 30, 16, 0.42)";
           context.beginPath();
           context.arc(
             columnIndex * cell + cell * 0.45,
@@ -67,7 +67,7 @@ export function FullMap({ goal, maze, onClose, temples }: FullMapProps) {
   }, [goal, maze, temples]);
 
   return (
-    <div className="absolute inset-0 z-30 grid place-items-center bg-[#02050a]/80 p-5 backdrop-blur-sm">
+    <div className="absolute inset-0 z-30 grid cursor-none place-items-center bg-[#02050a]/80 p-5 backdrop-blur-sm [&_*]:cursor-none">
       <section className="w-full max-w-4xl rounded-lg border border-amber-100/25 bg-[#130e0b] p-4 shadow-2xl sm:p-6">
         <div className="mb-4 flex items-center justify-between gap-4">
           <div>

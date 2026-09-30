@@ -39,7 +39,6 @@ export function Player({ goal, maze, mapVisible, onExit, onToggleMap }: PlayerPr
     const keyDown = (event: KeyboardEvent) => {
       if (event.code === "KeyF") {
         event.preventDefault();
-        document.exitPointerLock();
         onToggleMap();
         return;
       }

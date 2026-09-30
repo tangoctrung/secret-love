@@ -26,12 +26,21 @@ function MazeRose() {
     setWon(false);
     setShowGarden(true);
   }, []);
+  const completeMaze = useCallback(() => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    setMapVisible(false);
+    setWon(true);
+  }, []);
   const toggleMap = useCallback(() => setMapVisible((visible) => !visible), []);
 
   if (showGarden) return <GardenScreen onRestart={restart} />;
 
   return (
-    <main className="relative h-screen overflow-hidden bg-[#090604] text-white">
+    <main
+      className={`relative h-screen overflow-hidden bg-[#090604] text-white ${
+        mapVisible && !won ? "cursor-none" : ""
+      }`}
+    >
       <Canvas
         camera={{ fov: 72, position: toWorld(ENTRANCE) }}
         dpr={[1, 1.5]}
@@ -42,7 +51,7 @@ function MazeRose() {
           goal={game.goal}
           mapVisible={mapVisible}
           maze={game.maze}
-          onExit={() => setWon(true)}
+          onExit={completeMaze}
           onToggleMap={toggleMap}
           temples={game.temples}
         />
