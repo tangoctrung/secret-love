@@ -5,21 +5,36 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
-const ROWS = 15;
-const COLUMNS = 20;
+const ROWS = 30;
+const COLUMNS = 30;
 const CELL_SIZE = 2.1;
 const WALL_HEIGHT = 3.1;
 const PLAYER_RADIUS = 0.3;
-const ENTRANCE = { row: 1, column: 0 };
-const EXIT = { row: ROWS - 2, column: COLUMNS - 1 };
+const ENTRANCE = { row: 1, column: 1 };
+const LOOP_RATIO = 0.35;
 
 type MazeMatrix = number[][];
 type Position = { row: number; column: number };
+type TempleKind = "purple" | "orange" | "brown" | "red" | "green" | "indigo";
+type Temple = {
+  color: string;
+  glow: string;
+  intensity: number;
+  kind: TempleKind;
+  mapColor: string;
+  phase: number;
+  position: Position;
+};
 type RockTransform = {
   color: string;
   position: THREE.Vector3;
   rotation: THREE.Euler;
   scale: THREE.Vector3;
+};
+type GameState = {
+  goal: Position;
+  maze: MazeMatrix;
+  temples: Temple[];
 };
 
 const CARVE_DIRECTIONS = [
@@ -29,44 +44,238 @@ const CARVE_DIRECTIONS = [
   { row: 0, column: -2 },
 ] as const;
 
-function createMazeMatrix(): MazeMatrix {
-  const matrix = Array.from({ length: ROWS }, () => Array<number>(COLUMNS).fill(1));
-  const stack: Position[] = [{ row: 1, column: 1 }];
-  matrix[1][1] = 0;
+const GOAL_OPTIONS: Position[] = [
+  { row: 26, column: 18 },
+  { row: 28, column: 26 },
+];
 
-  while (stack.length) {
+const TEMPLE_TYPES: Omit<Temple, "position">[] = [
+  {
+    color: "#8b4dff",
+    glow: "#b56cff",
+    intensity: 36,
+    kind: "purple",
+    mapColor: "#b56cff",
+    phase: 0.2,
+  },
+  {
+    color: "#e77624",
+    glow: "#ff9f43",
+    intensity: 38,
+    kind: "orange",
+    mapColor: "#ff9f43",
+    phase: 1.1,
+  },
+  {
+    color: "#74462d",
+    glow: "#a96f45",
+    intensity: 36,
+    kind: "brown",
+    mapColor: "#a96f45",
+    phase: 2,
+  },
+  {
+    color: "#d81f32",
+    glow: "#ff4d5a",
+    intensity: 38,
+    kind: "red",
+    mapColor: "#ff4d5a",
+    phase: 2.9,
+  },
+  {
+    color: "#39b966",
+    glow: "#55d982",
+    intensity: 38,
+    kind: "green",
+    mapColor: "#55d982",
+    phase: 3.8,
+  },
+  {
+    color: "#3f4fc7",
+    glow: "#5968e8",
+    intensity: 38,
+    kind: "indigo",
+    mapColor: "#5968e8",
+    phase: 4.7,
+  },
+];
+const TEMPLE_COUNT = TEMPLE_TYPES.length;
+
+function shuffle<T>(items: T[]) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function createMazeMatrix(goal: Position): MazeMatrix {
+  const maze = Array.from({ length: ROWS }, () => Array<number>(COLUMNS).fill(1));
+  const firstCell = { row: 2, column: 2 };
+  const stack = [firstCell];
+  maze[firstCell.row][firstCell.column] = 0;
+
+  while (stack.length > 0) {
     const current = stack[stack.length - 1];
-    const options = CARVE_DIRECTIONS.filter(({ row, column }) => {
+    const nextDirection = shuffle([...CARVE_DIRECTIONS]).find(({ row, column }) => {
       const nextRow = current.row + row;
       const nextColumn = current.column + column;
       return (
-        nextRow > 0 &&
-        nextRow < ROWS - 1 &&
-        nextColumn > 0 &&
-        nextColumn < COLUMNS - 1 &&
-        matrix[nextRow][nextColumn] === 1
+        nextRow >= 2 &&
+        nextRow <= ROWS - 2 &&
+        nextColumn >= 2 &&
+        nextColumn <= COLUMNS - 2 &&
+        maze[nextRow][nextColumn] === 1
       );
     });
 
-    if (!options.length) {
+    if (!nextDirection) {
       stack.pop();
       continue;
     }
 
-    const direction = options[Math.floor(Math.random() * options.length)];
     const next = {
-      row: current.row + direction.row,
-      column: current.column + direction.column,
+      row: current.row + nextDirection.row,
+      column: current.column + nextDirection.column,
     };
-    matrix[current.row + direction.row / 2][current.column + direction.column / 2] = 0;
-    matrix[next.row][next.column] = 0;
+    maze[current.row + nextDirection.row / 2][current.column + nextDirection.column / 2] = 0;
+    maze[next.row][next.column] = 0;
     stack.push(next);
   }
 
-  matrix[ENTRANCE.row][ENTRANCE.column] = 0;
-  matrix[EXIT.row][EXIT.column - 1] = 0;
-  matrix[EXIT.row][EXIT.column] = 0;
-  return matrix;
+  const closedConnections: Position[] = [];
+  for (let row = 2; row <= ROWS - 2; row += 2) {
+    for (let column = 2; column <= COLUMNS - 2; column += 2) {
+      if (column + 2 <= COLUMNS - 2 && maze[row][column + 1] === 1) {
+        closedConnections.push({ row, column: column + 1 });
+      }
+      if (row + 2 <= ROWS - 2 && maze[row + 1][column] === 1) {
+        closedConnections.push({ row: row + 1, column });
+      }
+    }
+  }
+
+  shuffle(closedConnections)
+    .slice(0, Math.ceil(closedConnections.length * LOOP_RATIO))
+    .forEach(({ row, column }) => {
+      maze[row][column] = 0;
+    });
+
+  maze[ENTRANCE.row][ENTRANCE.column] = 0;
+  maze[1][2] = 0;
+  maze[goal.row][goal.column] = 0;
+  return maze;
+}
+
+function isSamePosition(first: Position, second: Position) {
+  return first.row === second.row && first.column === second.column;
+}
+
+function getPathDistances(maze: MazeMatrix, start: Position) {
+  const distances = Array.from({ length: ROWS }, () => Array<number>(COLUMNS).fill(-1));
+  const queue: Position[] = [start];
+  let queueIndex = 0;
+  distances[start.row][start.column] = 0;
+
+  while (queueIndex < queue.length) {
+    const current = queue[queueIndex];
+    queueIndex += 1;
+
+    for (const direction of [
+      { row: -1, column: 0 },
+      { row: 0, column: 1 },
+      { row: 1, column: 0 },
+      { row: 0, column: -1 },
+    ]) {
+      const row = current.row + direction.row;
+      const column = current.column + direction.column;
+      if (
+        row >= 0 &&
+        row < ROWS &&
+        column >= 0 &&
+        column < COLUMNS &&
+        maze[row][column] === 0 &&
+        distances[row][column] === -1
+      ) {
+        distances[row][column] = distances[current.row][current.column] + 1;
+        queue.push({ row, column });
+      }
+    }
+  }
+
+  return distances;
+}
+
+function createTemplePositions(maze: MazeMatrix, goal: Position, cells: Position[]) {
+  const distancesFromGoal = getPathDistances(maze, goal);
+  const goalAnchor = {
+    row: Math.min(goal.row, ROWS - 2),
+    column: Math.min(goal.column, COLUMNS - 2),
+  };
+  const selected: Position[] = [];
+
+  for (let index = 0; index < TEMPLE_COUNT; index += 1) {
+    const sectorRow = Math.floor(index / 3);
+    const sectorColumn = index % 3;
+    const rowStart = 1 + Math.floor((sectorRow * (ROWS - 2)) / 2);
+    const rowEnd = Math.floor(((sectorRow + 1) * (ROWS - 2)) / 2);
+    const columnStart = 1 + Math.floor((sectorColumn * (COLUMNS - 2)) / 3);
+    const columnEnd = Math.floor(((sectorColumn + 1) * (COLUMNS - 2)) / 3);
+    const sectorCells = shuffle(
+      cells.filter(
+        (position) =>
+          position.row >= rowStart &&
+          position.row <= rowEnd &&
+          position.column >= columnStart &&
+          position.column <= columnEnd &&
+          !isSamePosition(position, goal),
+      ),
+    );
+    const goalIsInSector =
+      goalAnchor.row >= rowStart &&
+      goalAnchor.row <= rowEnd &&
+      goalAnchor.column >= columnStart &&
+      goalAnchor.column <= columnEnd;
+    const cellsNearGoal = goalIsInSector
+      ? sectorCells.filter(({ row, column }) => {
+        const distance = distancesFromGoal[row][column];
+        return distance >= 3 && distance <= 8;
+      })
+      : [];
+    const candidates = cellsNearGoal.length > 0 ? cellsNearGoal : sectorCells;
+    const position =
+      candidates.find((candidate) =>
+        selected.every(
+          (light) =>
+            Math.abs(light.row - candidate.row) +
+            Math.abs(light.column - candidate.column) >=
+            5,
+        ),
+      ) ?? candidates[0];
+
+    selected.push(position);
+  }
+
+  return selected;
+}
+
+function createGameState(): GameState {
+  const goal = GOAL_OPTIONS[Math.floor(Math.random() * GOAL_OPTIONS.length)];
+  const maze = createMazeMatrix(goal);
+  const pathCells = maze.flatMap((row, rowIndex) =>
+    row.flatMap((cell, columnIndex) => {
+      const position = { row: rowIndex, column: columnIndex };
+      return cell === 0 && !isSamePosition(position, ENTRANCE) ? [position] : [];
+    }),
+  );
+  const templePositions = createTemplePositions(maze, goal, pathCells);
+  const temples = TEMPLE_TYPES.map((temple, index) => ({
+    ...temple,
+    position: templePositions[index],
+  }));
+
+  return { goal, maze, temples };
 }
 
 function toWorld(position: Position) {
@@ -239,11 +448,13 @@ function MazeWalls({ maze, texture }: { maze: MazeMatrix; texture: THREE.Texture
 }
 
 function Player({
+  goal,
   maze,
   mapVisible,
   onExit,
   onToggleMap,
 }: {
+  goal: Position;
   maze: MazeMatrix;
   mapVisible: boolean;
   onExit: () => void;
@@ -342,8 +553,8 @@ function Player({
     camera.rotation.set(pitchRef.current, yawRef.current, 0, "YXZ");
     const currentCell = toCell(position.x, position.z);
     if (
-      currentCell?.row === EXIT.row &&
-      currentCell.column === EXIT.column &&
+      currentCell &&
+      isSamePosition(currentCell, goal) &&
       !exitedRef.current
     ) {
       exitedRef.current = true;
@@ -354,7 +565,17 @@ function Player({
   return null;
 }
 
-function FullMap({ maze, onClose }: { maze: MazeMatrix; onClose: () => void }) {
+function FullMap({
+  goal,
+  maze,
+  onClose,
+  temples,
+}: {
+  goal: Position;
+  maze: MazeMatrix;
+  onClose: () => void;
+  temples: Temple[];
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -362,7 +583,7 @@ function FullMap({ maze, onClose }: { maze: MazeMatrix; onClose: () => void }) {
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
 
-    const cell = 36;
+    const cell = 18;
     canvas.width = COLUMNS * cell;
     canvas.height = ROWS * cell;
     maze.forEach((row, rowIndex) =>
@@ -384,10 +605,25 @@ function FullMap({ maze, onClose }: { maze: MazeMatrix; onClose: () => void }) {
       }),
     );
     context.fillStyle = "#ffbd78";
-    context.fillRect(ENTRANCE.column * cell + 8, ENTRANCE.row * cell + 8, cell - 16, cell - 16);
+    context.fillRect(ENTRANCE.column * cell + 4, ENTRANCE.row * cell + 4, cell - 8, cell - 8);
     context.fillStyle = "#69ead4";
-    context.fillRect(EXIT.column * cell + 8, EXIT.row * cell + 8, cell - 16, cell - 16);
-  }, [maze]);
+    context.fillRect(goal.column * cell + 4, goal.row * cell + 4, cell - 8, cell - 8);
+    temples.forEach((temple) => {
+      const centerX = temple.position.column * cell + cell / 2;
+      const centerY = temple.position.row * cell + cell / 2;
+      context.fillStyle = temple.mapColor;
+      context.beginPath();
+      context.moveTo(centerX, centerY - cell * 0.32);
+      context.lineTo(centerX + cell * 0.32, centerY);
+      context.lineTo(centerX, centerY + cell * 0.32);
+      context.lineTo(centerX - cell * 0.32, centerY);
+      context.closePath();
+      context.fill();
+      context.strokeStyle = "rgba(255,255,255,0.8)";
+      context.lineWidth = 1.5;
+      context.stroke();
+    });
+  }, [goal, maze, temples]);
 
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-[#02050a]/80 p-5 backdrop-blur-sm">
@@ -397,7 +633,7 @@ function FullMap({ maze, onClose }: { maze: MazeMatrix; onClose: () => void }) {
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-amber-100/55">
               Bản đồ ma trận
             </p>
-            <h2 className="mt-1 text-xl font-semibold">Mê cung 15 x 20</h2>
+            <h2 className="mt-1 text-xl font-semibold">Mê cung 30 x 30</h2>
           </div>
           <button
             className="rounded-md border border-white/20 px-4 py-2 text-sm transition hover:border-amber-100/60"
@@ -409,72 +645,87 @@ function FullMap({ maze, onClose }: { maze: MazeMatrix; onClose: () => void }) {
         </div>
         <canvas
           aria-label="Bản đồ ma trận mê cung"
-          className="aspect-[4/3] w-full rounded border border-white/12 bg-[#100b08]"
+          className="mx-auto aspect-square w-full max-w-[70vh] rounded border border-white/12 bg-[#100b08]"
           ref={canvasRef}
         />
         <p className="mt-3 text-center text-sm text-white/58">
-          Đen nâu là tường, xám là đường đi. Nhấn F để đóng bản đồ.
+          Cam là điểm xuất hiện, xanh ngọc là đích, sáu hình thoi màu là đèn định vị.
         </p>
       </section>
     </div>
   );
 }
 
-function MysticLight({
-  color,
-  intensity,
-  phase,
-  position,
-}: {
-  color: string;
-  intensity: number;
-  phase: number;
-  position: THREE.Vector3;
-}) {
+function TempleMarker({ temple }: { temple: Temple }) {
   const lightRef = useRef<THREE.PointLight>(null);
+  const position = toWorld(temple.position);
 
   useFrame((state) => {
     if (!lightRef.current) return;
     lightRef.current.intensity =
-      intensity * (0.88 + Math.sin(state.clock.elapsedTime * 0.72 + phase) * 0.12);
+      temple.intensity *
+      (0.88 + Math.sin(state.clock.elapsedTime * 0.72 + temple.phase) * 0.12);
   });
 
   return (
-    <pointLight
-      color={color}
-      decay={1.65}
-      distance={15}
-      intensity={intensity}
-      position={[position.x, 1.9, position.z]}
-      ref={lightRef}
-    />
+    <group position={[position.x, 0, position.z]}>
+      <pointLight
+        color={temple.glow}
+        decay={1.65}
+        distance={15}
+        intensity={temple.intensity}
+        position={[0, 1.9, 0]}
+        ref={lightRef}
+      />
+      <mesh castShadow receiveShadow position={[0, 0.11, 0]}>
+        <cylinderGeometry args={[0.52, 0.62, 0.22, 6]} />
+        <meshStandardMaterial color="#2a201b" metalness={0.02} roughness={0.9} />
+      </mesh>
+      <mesh castShadow position={[0, 0.62, 0]}>
+        <cylinderGeometry args={[0.34, 0.4, 0.78, 6]} />
+        <meshStandardMaterial
+          color={temple.color}
+          emissive={temple.color}
+          emissiveIntensity={0.22}
+          metalness={0.05}
+          roughness={0.62}
+        />
+      </mesh>
+      <mesh castShadow position={[0, 1.17, 0]} rotation={[0, Math.PI / 6, 0]}>
+        <coneGeometry args={[0.55, 0.55, 6]} />
+        <meshStandardMaterial
+          color={temple.glow}
+          emissive={temple.glow}
+          emissiveIntensity={0.38}
+          metalness={0.04}
+          roughness={0.55}
+        />
+      </mesh>
+    </group>
   );
 }
 
 function MazeScene({
+  goal,
   maze,
   mapVisible,
   onExit,
   onToggleMap,
+  temples,
 }: {
+  goal: Position;
   maze: MazeMatrix;
   mapVisible: boolean;
   onExit: () => void;
   onToggleMap: () => void;
+  temples: Temple[];
 }) {
   const rockTexture = useMemo(() => createRockTexture(), []);
   useEffect(() => () => rockTexture.dispose(), [rockTexture]);
   const width = COLUMNS * CELL_SIZE;
   const depth = ROWS * CELL_SIZE;
   const entrance = toWorld(ENTRANCE);
-  const exit = toWorld(EXIT);
-  const zoneLights = [
-    { color: "#ff754f", intensity: 34, phase: 0.2, position: toWorld({ row: 3, column: 4 }) },
-    { color: "#668cff", intensity: 36, phase: 1.4, position: toWorld({ row: 3, column: 15 }) },
-    { color: "#c36cff", intensity: 32, phase: 2.7, position: toWorld({ row: 8, column: 9 }) },
-    { color: "#ffca69", intensity: 35, phase: 4.1, position: toWorld({ row: 12, column: 4 }) },
-    { color: "#5fffd4", intensity: 38, phase: 5.3, position: toWorld({ row: 11, column: 16 }) },
-  ];
+  const goalWorld = toWorld(goal);
 
   return (
     <>
@@ -491,19 +742,10 @@ function MazeScene({
       />
       <pointLight
         color="#7ff0d9"
-        distance={18}
-        intensity={52}
-        position={[exit.x, 2, exit.z]}
+        distance={15}
+        intensity={42}
+        position={[goalWorld.x, 2, goalWorld.z]}
       />
-      {zoneLights.map((light) => (
-        <MysticLight
-          color={light.color}
-          intensity={light.intensity}
-          key={light.color}
-          phase={light.phase}
-          position={light.position}
-        />
-      ))}
       <Stars count={2200} depth={50} factor={3} fade radius={100} speed={0.35} />
       <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width, depth, 120, 90]} />
@@ -523,11 +765,18 @@ function MazeScene({
         <circleGeometry args={[0.42, 32]} />
         <meshBasicMaterial color="#ffb86f" />
       </mesh>
-      <mesh position={[exit.x, 0.07, exit.z]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh position={[goalWorld.x, 0.07, goalWorld.z]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[0.42, 32]} />
         <meshBasicMaterial color="#6ce8d4" />
       </mesh>
+      {temples.map((temple) => (
+        <TempleMarker
+          key={`${temple.kind}-${temple.position.row}-${temple.position.column}`}
+          temple={temple}
+        />
+      ))}
       <Player
+        goal={goal}
         mapVisible={mapVisible}
         maze={maze}
         onExit={onExit}
@@ -538,13 +787,13 @@ function MazeScene({
 }
 
 function MazeRose() {
-  const [maze, setMaze] = useState<MazeMatrix>(() => createMazeMatrix());
+  const [game, setGame] = useState<GameState>(() => createGameState());
   const [won, setWon] = useState(false);
   const [mapVisible, setMapVisible] = useState(false);
   const restart = useCallback(() => {
     setWon(false);
     setMapVisible(false);
-    setMaze(createMazeMatrix());
+    setGame(createGameState());
   }, []);
   const toggleMap = useCallback(() => setMapVisible((visible) => !visible), []);
 
@@ -557,10 +806,12 @@ function MazeRose() {
         shadows
       >
         <MazeScene
+          goal={game.goal}
           mapVisible={mapVisible}
-          maze={maze}
+          maze={game.maze}
           onExit={() => setWon(true)}
           onToggleMap={toggleMap}
+          temples={game.temples}
         />
       </Canvas>
 
@@ -585,7 +836,14 @@ function MazeRose() {
         <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/80 shadow-[0_0_12px_rgba(255,190,125,0.9)]" />
       </div>
 
-      {mapVisible ? <FullMap maze={maze} onClose={toggleMap} /> : null}
+      {mapVisible ? (
+        <FullMap
+          goal={game.goal}
+          maze={game.maze}
+          onClose={toggleMap}
+          temples={game.temples}
+        />
+      ) : null}
 
       {won ? (
         <div className="absolute inset-0 z-20 grid place-items-center bg-[#080503]/70 px-5 backdrop-blur-sm">
